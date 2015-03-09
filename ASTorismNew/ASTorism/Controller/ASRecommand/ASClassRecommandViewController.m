@@ -1,0 +1,742 @@
+//
+//  ASClassRecommandViewController.m
+//  ASTorism
+//
+//  Created by apple  on 13-8-20.
+//  Copyright (c) 2013年 AS. All rights reserved.
+//
+
+#import "ASClassRecommandViewController.h"
+#import "UIDevice+Resolutions.h"
+#import "ASRecommandCell.h"
+#import "ASMerchantInfoViewController.h"
+#import "ASGlobal.h"
+#import "ASMerchantDetailInfo.h"
+#import "ASActivityIndcatorView.h"
+//#import "UrlImageView.h"
+#import "UIImageView+AFNetworking.h"
+@interface ASClassRecommandViewController ()
+{
+    NavigationBar *navBar;
+  IBOutlet  UITableView *table;
+   
+    ASTableHeaderView *_refreshHeaderView;
+    BOOL _reloading;//主要是记录是否在刷新中
+   
+    UILabel *moreLabel;
+    
+    ASCView *cView;//二级分类View
+    
+    IBOutlet UILabel *cButton;
+    BOOL cButtonClick;//判断类别按钮是否被点击
+    BOOL isPullRefresh;//判断是否是下拉刷新
+}
+@property(nonatomic,retain)NSString *subClassId;//二级分类id
+
+@property(nonatomic,assign)BOOL isSubClass;//判断是否是点击了二级分类
+@property(nonatomic,assign) int currentPage; //加载当前页数
+@property(nonatomic,assign) int totalPage;
+//下拉刷新
+//@property(nonatomic,retain) UIActivityIndicatorView *activityIndicatorView;
+//进入页面时的加载提示
+@property (nonatomic,retain) ASActivityIndcatorView *indcatorView;
+@property(nonatomic,retain) NSMutableArray *recommandArray;//存放推荐数组
+
+
+
+//二级分类按钮点击事件
+-(IBAction)cidChoose:(id)sender;
+
+
+
+@end
+
+@implementation ASClassRecommandViewController
+@synthesize city=_city;
+@synthesize category=_category;
+@synthesize currentPage=_currentPage;
+@synthesize totalPage=_totalPage;
+@synthesize categoryId=_categoryId;
+@synthesize cityId=_cityId;
+@synthesize recommandArray=_recommandArray;
+@synthesize isSubClass=_isSubClass;
+@synthesize subClassId=_subClassId;
+
+@synthesize distanceStr = _distanceStr;
+@synthesize latitude = _latitude;
+@synthesize longitude = _longitude;
+
+/*
+ *setNavBar
+ *无参数
+ *设置navigationBar
+ *无返回
+ */
+-(void)setNavBar{
+    //设置导航栏背景
+    self.navigationController.navigationBarHidden=YES;
+    /*
+     自定义NavgationBar
+     */
+    if (nil==navBar) {
+        navBar=[ [[NSBundle mainBundle]loadNibNamed:@"NavigationBar" owner:nil options:nil]objectAtIndex:0];
+    }
+    navBar.titleLabel.font=[UIFont boldSystemFontOfSize:19];
+    navBar.Delegate=self;
+    navBar.backgroundColor=[UIColor redColor];
+    navBar.searchButton.hidden=YES;
+    navBar.cityButton.hidden=YES;
+    navBar.searchImage.hidden=YES;
+    navBar.cityImage.hidden=YES;
+    navBar.titleLabel.text=self.category;
+    
+    //适配navBar
+    if ([UIDevice systemMajorVersion] < 7) {
+        navBar.frame = CGRectMake(0, 0, SCREENWIDTH, 44);
+    }else
+        navBar.frame = CGRectMake(0, 0, SCREENWIDTH, 64);
+    [self.view addSubview:navBar];
+}
+#pragma NavigationBarDelegate
+-(void)NavBarBackClick{
+    [self.navigationController popViewControllerAnimated:YES];
+}
+-(void)NavCityButtonClick{
+}
+-(void)NavSearchButtonClick{
+}
+#pragma Adaptation 适配
+-(void)Adaptation{
+    
+    
+//    if ([UIDevice isRunningOniPhone5]) {
+//        NSLog(@"iphone5");
+//        table.frame=CGRectMake(table.frame.origin.x, table.frame.origin.y, table.frame.size.width, 469);
+//    }else{
+//        NSLog(@"iphone4");
+//      
+//        table.frame=CGRectMake(table.frame.origin.x, table.frame.origin.y, table.frame.size.width,381);
+//    }
+    CGRect rect;
+    if ([UIDevice systemMajorVersion] < 7.0) {
+        NSLog(@"iphone4");
+
+        self.headView.frame = CGRectMake(0, 44, SCREENWIDTH, self.headView.bounds.size.height);
+        self.lineView.frame = CGRectMake(0, 44 + self.headView.bounds.size.height, SCREENWIDTH, self.lineView.bounds.size.height);
+        rect = CGRectMake(0, 44 + self.headView.bounds.size.height + self.lineView.bounds.size.height, SCREENWIDTH, SCREENHEIGHT - 44 - self.headView.bounds.size.height - self.lineView.bounds.size.height);
+    }else{
+        NSLog(@"iphone5");
+        
+        self.headView.frame = CGRectMake(0, 64, SCREENWIDTH, self.headView.bounds.size.height);
+        self.lineView.frame = CGRectMake(0, 64 + self.headView.bounds.size.height, SCREENWIDTH, self.lineView.bounds.size.height);
+        rect = CGRectMake(0, 64 + self.headView.bounds.size.height + self.lineView.bounds.size.height, SCREENWIDTH, SCREENHEIGHT - 64 - self.headView.bounds.size.height - self.lineView.bounds.size.height);
+    }
+    table.frame = rect;
+
+}
+
+
+- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
+{
+    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    if (self) {
+        // Custom initialization
+    }
+    return self;
+}
+
+-(void)viewWillAppear:(BOOL)animated{
+    [ASGlobal hiddenBottomMenuView];//隐藏tabbar
+    [self setNavBar];
+    [self Adaptation];
+    [super viewWillAppear:YES];
+}
+
+- (void) viewDidAppear:(BOOL)animated
+{
+    [self setNavBar];
+    [self Adaptation];
+    [super viewDidAppear:YES];
+}
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+
+     moreLabel.text=@"加载更多";
+    self.isSubClass=NO;
+ 
+    isPullRefresh=NO;
+    
+    [self setNavBar];
+    [self Adaptation];
+    [self setEGO];
+  
+//    table.hidden=YES;
+
+//    recommandArray=[[NSMutableArray alloc]initWithCapacity:0];
+    _currentPage=1;
+    _totalPage=-1;
+    //网络请求加载数据
+    [self reloadTableViewDataSource];
+    // Do any additional setup after loading the view from its nib.
+}
+
+- (void)didReceiveMemoryWarning
+{
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+-(void)dealloc {
+    [_recommandArray release];
+    [_cityId release];
+    [_headView release];
+    [_lineView release];
+    [super dealloc];
+//    [navBar release];
+    [_category release];
+    [_city release];
+    [_categoryId release];
+    [table release];
+    [_refreshHeaderView release];
+    [moreLabel release];
+    [_subClassId release];
+}
+
+
+#pragma tableDelegate
+-(UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath{
+    NSLog(@"=================%d",_recommandArray.count);
+    static NSString *identifier=@"recommandTableView";
+    id cell=nil;
+    if (indexPath.row<_recommandArray.count) {
+        ASRecommandCell *recommandCell=nil;
+        recommandCell=[tableView dequeueReusableCellWithIdentifier:identifier];
+        if (nil==recommandCell) {
+            recommandCell=[[[NSBundle mainBundle]loadNibNamed:@"ASRecommandCell" owner:nil options:nil]objectAtIndex:0];
+            
+            //设置cell的背景颜色
+            recommandCell.contentView.backgroundColor=[UIColor whiteColor];
+            
+            //设置选中图片
+            UIImageView *selectImageView = [[UIImageView alloc] initWithImage: [UIImage imageNamed:@"libiaoxuanzhong.png"]];
+            recommandCell.selectedBackgroundView = selectImageView;
+            [selectImageView release];
+        }
+        ASMerchantDetailInfo *info= [_recommandArray objectAtIndex:indexPath.row];
+        recommandCell.name.text=info.name;
+        recommandCell.addres.text=info.address;
+
+        recommandCell.info.text=info.discount;
+        
+        
+        
+        if (nil!=info.imageURL&&info.imageURL.length>0) {
+            NSString *strImgURL=[NSString stringWithFormat:@"%@", info.imageURL];
+            UIImageView *imageView = [[UIImageView alloc]initWithFrame:CGRectMake(recommandCell.image.frame.origin.x, recommandCell.image.frame.origin.y, recommandCell.image.frame.size.width, recommandCell.image.frame.size.height)];
+//            imageView.contentMode = UIViewContentModeScaleAspectFit;
+            imageView.backgroundColor=[UIColor clearColor];
+            [imageView setImageWithURL:[NSURL URLWithString:strImgURL]placeholderImage:nil];
+            [recommandCell addSubview:imageView];
+            
+            [imageView release];
+        }
+
+
+        
+        cell=recommandCell;
+    }else {
+        static NSString *identifierMore=@"more";
+        UITableViewCell *moreCell = [tableView dequeueReusableCellWithIdentifier:identifierMore];
+        if (nil==moreCell )
+        {
+            moreCell = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifierMore] autorelease] ;
+            if (nil==moreLabel) {
+                moreLabel = [[UILabel alloc] initWithFrame:CGRectMake(0,12,320, 20)];
+//                [moreLabel setFrame:CGRectMake(0,12,320, 20)];
+                [moreLabel setFont:[UIFont systemFontOfSize:13]];
+                moreLabel.tag = 1010;
+                
+                [moreLabel setTextAlignment:NSTextAlignmentCenter];
+                
+            }
+            
+           
+            [moreCell addSubview:moreLabel];
+            [moreCell  setSelectionStyle:UITableViewCellSelectionStyleNone];
+        }
+        if (_currentPage==_totalPage) {
+            moreLabel.text=@"没有更多数据";
+        }else{
+            moreLabel.text=@"加载更多";
+        }
+        cell=moreCell;
+    }
+    
+    
+    return cell;
+}
+-(CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath{
+    float height;
+    if (indexPath.row<_recommandArray.count) {
+        height=93.0;
+    }else{
+        height=44.0;
+    }
+    
+    
+    return height;
+}
+-(NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section{
+    if (_recommandArray.count>0) {
+        return _recommandArray.count+1;
+    }else{
+        return 0;
+    }
+        
+}
+-(void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath{
+    
+    if (indexPath.row<_recommandArray.count) {
+        ASMerchantInfoViewController *    merchanInfo = [[ASMerchantInfoViewController alloc] initWithNibName:@"ASMerchantInfoViewController" bundle:nil];
+        merchanInfo.merchantDetail=[_recommandArray objectAtIndex:indexPath.row];
+//            [self.navigationController pushViewController: merchanInfo
+//                                                          animated: YES];
+        
+        @try {
+            [self.navigationController pushViewController: merchanInfo
+                                                 animated: YES];
+        }
+        @catch (NSException * ex) {
+            //“Pushing the same view controller instance more than once is not supported”
+            //NSInvalidArgumentException
+            //Full error includes class pointer address so only care if it starts with this error
+            NSRange range = [ex.reason rangeOfString:@"Pushing the same view controller instance more than once is not supported"];
+            
+            if([ex.name isEqualToString:@"NSInvalidArgumentException"] &&
+               range.location != NSNotFound)
+            {
+                //view controller already exists in the stack - just pop back to it
+                [self.navigationController pushViewController: merchanInfo
+                                                     animated: YES];
+            }else{
+                NSLog(@"ERROR:UNHANDLED EXCEPTION TYPE:%@", ex);
+            }
+        }
+        @finally {
+            //NSLog(@"finally");
+        }
+        
+        
+        
+        
+        [merchanInfo release];
+       
+    }else{
+        if (_currentPage!=_totalPage&&moreLabel&&_recommandArray.count>0) {
+            _currentPage++;
+            moreLabel.text=@"正在加载中";
+            [self reloadTableViewDataSource];
+        }
+    }
+    
+        [tableView deselectRowAtIndexPath: indexPath
+                             animated: YES];
+}
+
+
+
+
+
+#pragma table滑动
+
+//
+-(void)setEGO{
+    if(_refreshHeaderView == nil)
+    {
+        ASTableHeaderView *view = [[ASTableHeaderView alloc] initWithFrame:CGRectMake(0.0f, 0.0f - table.bounds.size.height, self.view.frame.size.width, table.bounds.size.height)];
+        
+        view.delegate = self;
+        [table addSubview:view];
+        _refreshHeaderView = view;
+    }
+    [_refreshHeaderView refreshLastUpdatedDate];
+    
+}
+
+
+//-----//请求网络加载数据
+-(void)reloadTableViewDataSource
+{
+    [self startAnimating];
+    _reloading=YES;
+    table.userInteractionEnabled=NO;
+        NSString *pageCountStr = [[NSString alloc] initWithFormat: @"%d",_currentPage];
+    NSDictionary *parametersDic=nil;
+    if (_isSubClass&&![_subClassId isEqualToString:_categoryId]) {
+        parametersDic =[[NSDictionary alloc]initWithObjectsAndKeys:_cityId,@"cityId",@YES,@"isRecommend",pageCountStr,PAGENONUMER,PAGENUMBER,PAGESIZENUMBER,_subClassId,@"cateTypeId", nil];
+
+    }else{
+//        parametersDic =[[NSDictionary alloc]initWithObjectsAndKeys:_cityId,@"cityId",@YES,@"isRecommend",pageCountStr,PAGENONUMER,PAGENUMBER,PAGESIZENUMBER,_categoryId,@"type", nil];
+        parametersDic=[[NSDictionary alloc]initWithObjectsAndKeys:_cityId,@"cityId",@YES,@"isRecommend",pageCountStr,PAGENONUMER,PAGENUMBER,PAGESIZENUMBER,_categoryId,@"cateId", nil];
+    }
+ 
+    //@1,@"isIndex",
+    
+    ASIFormDataRequest *request= [[ASIFormDataRequest alloc] initWithURL:[NSURL URLWithString:REQUESTTYPERECOMMANDURL]];
+    [request setDelegate:self];
+    [request setTimeOutSeconds:5];
+    for (NSString *key in [parametersDic allKeys]) {
+        NSString *value=[parametersDic objectForKey:key];
+        [request setPostValue:value forKey:key];
+    }
+   
+    [request startAsynchronous];//异步加载
+    [request release];
+    [parametersDic release];
+    [pageCountStr release];
+}
+- (void)doneLoadingTableViewData{
+    [_refreshHeaderView egoRefreshScrollViewDataSourceDidFinishedLoading:table];
+}
+#pragma mark –
+#pragma mark UIScrollViewDelegate Methods
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView{
+    
+    [_refreshHeaderView egoRefreshScrollViewDidScroll:scrollView];
+    
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate{
+    
+    [_refreshHeaderView egoRefreshScrollViewDidEndDragging:scrollView];
+    
+}
+
+#pragma mark –
+#pragma mark EGORefreshTableHeaderDelegate Methods
+- (void)egoRefreshTableHeaderDidTriggerRefresh:(ASTableHeaderView*)view{
+    _currentPage=1;
+    _totalPage=-1;
+    isPullRefresh=YES;
+    [self reloadTableViewDataSource];
+    
+    
+    
+}
+- (BOOL)egoRefreshTableHeaderDataSourceIsLoading:(ASTableHeaderView*)view{
+    
+    return _reloading; // should return if data source model is reloading
+    
+}
+- (NSDate*)egoRefreshTableHeaderDataSourceLastUpdated:(ASTableHeaderView*)view{
+    
+    return [NSDate date]; // should return date data source was last changed
+    
+}
+//上啦加载更多
+-(void)egoUploadMoreWithPull{
+//    NSLog(@"上啦加载");
+    
+    if (_currentPage!=_totalPage&&moreLabel&&_recommandArray.count>0) {
+        _currentPage++;
+        moreLabel.text=@"正在加载中";
+        [self reloadTableViewDataSource];
+    }
+}
+-(void)egoUploadMoreWithIsPulling{
+   
+}
+///*
+// 加载动画开始
+// */
+-(void)startAnimating{
+    //加载动画
+    
+    if (nil == _indcatorView)
+    {
+        _indcatorView = [[ASActivityIndcatorView alloc] init];
+    }
+    [_indcatorView showIndicator];
+       
+}
+/*
+ 加载动画结束
+ */
+-(void)stopAnimating{
+
+    table.userInteractionEnabled=YES;
+    [_indcatorView dimissIndicator];
+    
+}
+
+
+//成功回调
+-(void)requestFinished:(ASIHTTPRequest *)request
+{
+    NSString *string = [request responseString];
+    //    NSLog(@"%@",requestResult);
+    NSDictionary *responseDict = [string objectFromJSONString];
+//      NSLog(@"%@",responseDict);
+    /*
+     获取推荐列表中的信息
+     */
+
+    
+    NSArray *arr=[responseDict objectForKey:@"root"];//存放推荐列表数组信息
+    
+    
+    if (_recommandArray.count>0&&_currentPage==1) {
+        [_recommandArray removeAllObjects];
+    }
+
+    
+    NSMutableArray *array=[[NSMutableArray alloc]initWithArray:_recommandArray];
+    for (NSDictionary *dic in arr) {
+        ASMerchantDetailInfo *info=[[ASMerchantDetailInfo alloc]init];
+        NSString *ids=[NSString stringWithFormat:@"%@",[dic objectForKey:@"id"]];
+        if ([ids isEqualToString:@"<null>"]||[ids isEqualToString:@""]) {
+            ids=@"";
+        }
+        info.ids=ids;
+        NSString *name=[NSString stringWithFormat:@"%@",[dic objectForKey:@"name"]];
+        if ([name isEqualToString:@"<null>"]||[name isEqualToString:@""]) {
+            name=@"";
+        }
+        info.name=name;
+        NSString *city=[NSString stringWithFormat:@"%@",[dic objectForKey:@"cityName"]];
+        if ([city isEqualToString:@"<null>"]||[city isEqualToString:@""]) {
+            city=@"";
+        }
+        info.city=city;
+        NSString *address=[NSString stringWithFormat:@"%@",[dic objectForKey:@"address"]];
+        if ([address isEqualToString:@"<null>"]||[address isEqualToString:@""]) {
+            address=@"";
+        }
+        info.address=address;
+        NSString *discount=[NSString stringWithFormat:@"%@",[dic objectForKey:@"ly_ykt"]];
+        if ([discount isEqualToString:@"<null>"]||[discount isEqualToString:@""]) {
+            discount=@"";
+        }
+        info.discount=discount;
+        NSString *createTime=[NSString stringWithFormat:@"%@",[dic objectForKey:@"createTime"]];
+        if ([createTime isEqualToString:@"<null>"]||[createTime isEqualToString:@""]) {
+            createTime=@"";
+        }
+        info.createTime=createTime;
+        NSString *imageURL=[NSString stringWithFormat:@"%@",[dic objectForKey:@"preview"]];
+        if ([imageURL isEqualToString:@"<null>"]||[imageURL isEqualToString:@""]) {
+            imageURL=@"";
+        }
+        info.imageURL=imageURL;
+        NSString *imageURLMAX=[NSString stringWithFormat:@"%@",[dic objectForKey:@"preview"]];
+        if ([imageURLMAX isEqualToString:@"<null>"]||[imageURLMAX isEqualToString:@""]) {
+            imageURLMAX=@"";
+        }
+        info.imageURLMAX=imageURLMAX;
+        NSString *introduction=[NSString stringWithFormat:@"%@",[dic objectForKey:@"mobile_brief"]];
+        if ([introduction isEqualToString:@"<null>"]||[introduction isEqualToString:@""]) {
+            introduction=@"";
+        }
+        info.introduction=introduction;
+        NSString *latitude=[NSString stringWithFormat:@"%@",[dic objectForKey:@"latitude"]];
+        if ([latitude isEqualToString:@"<null>"]||[latitude isEqualToString:@""]) {
+            latitude=@"";
+        }
+        info.latitude=latitude;
+        NSString *longitude=[NSString stringWithFormat:@"%@",[dic objectForKey:@"longitude"]];
+        if ([longitude isEqualToString:@"<null>"]||[longitude isEqualToString:@""]) {
+            longitude=@"";
+        }
+        info.longitude=longitude;
+        NSString *remark=[NSString stringWithFormat:@"%@",[dic objectForKey:@"remark"]];
+        if ([remark isEqualToString:@"<null>"]||[remark isEqualToString:@""]) {
+            remark=@"";
+        }
+        info.remark=remark;
+        NSString *stars=[NSString stringWithFormat:@"%@",[dic objectForKey:@"avg_point"]];
+        if ([stars isEqualToString:@"<null>"]||[stars isEqualToString:@""]) {
+            stars=@"";
+        }
+        info.stars=stars;
+        NSString *status=[NSString stringWithFormat:@"%@",[dic objectForKey:@"status"]];
+        if ([status isEqualToString:@"<null>"]||[status isEqualToString:@""]) {
+            status=@"";
+        }
+        info.status=status;
+        
+        NSString *tel=[NSString stringWithFormat:@"%@",[dic objectForKey:@"tel"]];
+        if ([tel isEqualToString:@"<null>"]||[tel isEqualToString:@""]) {
+            tel=@"";
+        }
+        info.tel=tel;
+        NSString *type=[NSString stringWithFormat:@"%@",[dic objectForKey:@"type"]];
+        if ([type isEqualToString:@"<null>"]||[type isEqualToString:@""]) {
+            type=@"";
+        }
+        info.type=type;
+        NSString *visible=[NSString stringWithFormat:@"%@",[dic objectForKey:@"visible"]];
+        if ([visible isEqualToString:@"<null>"]||[visible isEqualToString:@""]) {
+            visible=@"";
+        }
+        info.visible=visible;
+        NSString *changed=[NSString stringWithFormat:@"%@",[dic objectForKey:@"changed"]];
+        if ([changed isEqualToString:@"<null>"]||[changed isEqualToString:@""]) {
+            changed=@"";
+        }
+        info.changed=changed;
+        
+        [array addObject:info];
+        [info release];
+    }
+    [_recommandArray removeAllObjects];
+    self.recommandArray =[NSMutableArray arrayWithArray:array];
+    
+    if (arr.count<[PAGENUMBER intValue]) {
+        _totalPage=_currentPage;
+    }
+    if (_recommandArray.count>0) {
+        table.hidden=NO;
+    }else{
+        table.hidden=YES;
+        [self stopAnimating];
+        UIAlertView *alert=[[UIAlertView alloc]initWithTitle:@"提示" message:@"目前没有精品推荐！" delegate:nil cancelButtonTitle:@"确定" otherButtonTitles:nil];
+        [alert show];
+        [alert release];
+    }
+    _reloading = NO;
+    if (_totalPage==_currentPage) {
+        moreLabel.text=@"没有更多数据";
+    }else{
+        moreLabel.text=@"加载更多";
+    }
+    [array release];
+    if (isPullRefresh) {
+        isPullRefresh=NO;
+    }else{
+        if (_currentPage==1) {
+            [table setContentOffset:CGPointMake(0, 0) animated:NO];
+        }
+    }
+    [table reloadData];
+    [self stopAnimating];
+    [self doneLoadingTableViewData];
+
+}
+
+//失败回调
+-(void)requestFailed:(ASIHTTPRequest *)request
+{
+    if (_currentPage>1) {
+        _currentPage--;
+    }
+    _reloading = NO;
+    if (_totalPage==_currentPage) {
+        moreLabel.text=@"没有更多数据";
+    }else{
+        moreLabel.text=@"加载更多";
+    }
+    
+    [table reloadData];
+    table.userInteractionEnabled=YES;
+    [self stopAnimating];
+    [self doneLoadingTableViewData];
+//    [self performSelector:@selector(doneLoadingTableViewData) withObject:nil afterDelay:0];
+    
+    UIAlertView *alert=[[UIAlertView alloc]initWithTitle:@"提示" message:@"亲，网络不给力！" delegate:nil cancelButtonTitle:@"确定" otherButtonTitles:nil];
+    [alert show];
+    [alert release];
+}
+
+
+
+//二级分类按钮点击事件
+-(IBAction)cidChoose:(id)sender{
+    if (!cButtonClick) {
+        table.userInteractionEnabled=NO;
+        if (nil==cView) {
+            cView=[[[NSBundle mainBundle]loadNibNamed:@"ASCView" owner:nil options:nil]objectAtIndex:0];
+            cView.frame=CGRectMake(220, table.frame.origin.y , cView.frame.size.width, 0);
+            cView.delegate=self;
+            [self.view addSubview:cView];
+        }
+        //得到category文件中的所有字典
+        NSString *categoryPath=[[NSBundle mainBundle]pathForResource:@"category" ofType:@"plist"];
+        NSArray *allArr=[[NSArray alloc]initWithContentsOfFile:categoryPath];
+        NSLog(@"------------allArr:%@",allArr);
+        NSDictionary *allDic=nil;
+        for (int i=0; i<allArr.count; i++) {
+            NSDictionary *dic=[allArr objectAtIndex:i];
+            if ([[[dic allKeys]objectAtIndex:0] isEqualToString:_category]) {
+                allDic=[NSDictionary dictionaryWithDictionary:dic];
+            }
+        }
+        if (cView.array.count>0) {
+            [cView.array removeAllObjects];
+        }
+        NSMutableArray *arr=[[NSMutableArray alloc]initWithCapacity:0];
+        //=============添加全部选项====================
+        NSDictionary *all=[[NSDictionary alloc]initWithObjectsAndKeys:_categoryId,@"全部", nil];
+        [arr addObject:all];
+        [all release];
+        //===========================================
+        NSArray *a=[allDic objectForKey:_category];
+        NSLog(@"---a======:%@",a);
+        for (int i=0; i<a.count; i++) {
+            NSDictionary *dic=[a objectAtIndex:i];
+            [arr addObject:dic];
+            
+        }
+        
+      
+        
+        cView.array=[NSMutableArray arrayWithArray:arr];
+        
+      
+        
+        [cView.table reloadData];
+        [UIView animateWithDuration:0.3 animations:^{
+            if (cView.array.count>8) {
+                cView.frame=CGRectMake(220,table.frame.origin.y , cView.frame.size.width, 44*8);
+            }else{
+            cView.frame=CGRectMake(220,table.frame.origin.y , cView.frame.size.width, 44*cView.array.count);
+            }
+            
+        }];
+//        if (cView.array.count>8) {
+//
+//           cView.table.frame=CGRectMake(0,0 , cView.frame.size.width, 44*8);
+//        }else{
+//           cView.table.frame=CGRectMake(0,0 , cView.frame.size.width, 44*cView.array.count);
+//        }
+       
+        [arr release];
+        [allArr release];
+
+    }else{
+        if (nil!=cView) {
+            table.userInteractionEnabled=YES;
+            [UIView animateWithDuration:0.3 animations:^{
+                cView.frame=CGRectMake(220,table.frame.origin.y , cView.frame.size.width, 0);
+            }];
+
+        }
+    }
+    cButtonClick = !cButtonClick;
+    
+}
+#pragma ASCidChooseDelegaye
+-(void)getCid:(NSString *)cid cName:(NSString *)name{
+    cButtonClick=NO;
+    self.subClassId=cid;
+    cButton.text=name;
+    _currentPage=1;
+    _totalPage=-1;
+    [UIView animateWithDuration:0.3 animations:^{
+        cView.frame=CGRectMake(220,table.frame.origin.y , cView.frame.size.width, 0);
+    }];
+    self.isSubClass=YES;
+    [self reloadTableViewDataSource];
+}
+@end

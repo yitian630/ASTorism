@@ -1,0 +1,183 @@
+//
+//  ASAboutViewController.m
+//  ASBestLife
+//
+//  Created by apple  on 13-7-17.
+//  Copyright (c) 2013年 FireflySoftware. All rights reserved.
+//
+
+#import "ASAboutViewController.h"
+#import "UIDevice+Resolutions.h"
+#import "ASGlobal.h"
+
+
+
+
+@interface ASAboutViewController ()
+{
+//    IBOutlet  UIImageView *backImage;
+//    IBOutlet UIImageView *logoImage;
+//    IBOutlet UIImageView *logoBack;
+//    IBOutlet  UIImageView *bestLifeImage;
+//    IBOutlet  UILabel *versionLabel;
+//    IBOutlet  UILabel *version;
+//    IBOutlet  UILabel *MailBoxLabel;
+//    IBOutlet  UILabel *mail;
+//    IBOutlet  UILabel *telephoneLabel;
+    IBOutlet UILabel *telephone;
+//    IBOutlet  UILabel *officialWebsiteLabel;
+    IBOutlet  UILabel *officialWebsite;
+//    IBOutlet  UILabel *Remind;
+//    IBOutlet UIButton *telButton;
+//    IBOutlet UIButton *urlButton;
+//    IBOutlet UIView *telLine;
+//    IBOutlet UIView *officialWebsiteLine;
+    IBOutlet UIScrollView *scrollView;
+    NavigationBar *navBar;
+}
+
+/**
+ *拨打电话点击
+ */
+- (IBAction)callPhone:(id)sender;
+/**
+ *打开官网
+ */
+- (IBAction)openUrl:(id)sender;
+
+@end
+
+@implementation ASAboutViewController
+
+
+/*
+ *设置navigationBar
+ */
+-(void)setNavBar{
+    //设置导航栏背景
+    self.navigationController.navigationBarHidden=YES;
+    /*
+     自定义NavgationBar
+     */
+    if (nil==navBar) {
+        navBar=[ [[NSBundle mainBundle]loadNibNamed:@"NavigationBar" owner:nil options:nil]objectAtIndex:0];
+    }
+    navBar.titleLabel.font=[UIFont boldSystemFontOfSize:19];
+    navBar.Delegate=self;
+    navBar.searchButton.hidden=YES;
+    navBar.cityButton.hidden=YES;
+    navBar.searchImage.hidden=YES;
+    navBar.cityImage.hidden=YES;
+    navBar.titleLabel.text=@"关于我们";
+    [self.view addSubview:navBar];
+}
+#pragma NavigationBarDelegate
+-(void)NavBarBackClick{
+    [self.navigationController popViewControllerAnimated: YES];
+}
+#pragma navigationBarDelegate
+-(void)NavSearchButtonClick{
+}
+-(void)NavCityButtonClick{
+}
+
+
+#pragma Adaptation 适配
+-(void)Adaptation{
+    
+    if ([UIDevice isRunningOniPhone5]) {
+//        bestLifeImage.frame=CGRectMake(bestLifeImage.frame.origin.x,66 , bestLifeImage.frame.size.width,  bestLifeImage.frame.size.height);
+//         logoBack.frame=CGRectMake(logoBack.frame.origin.x,71 , logoBack.frame.size.width,  logoBack.frame.size.height);
+//        versionLabel.frame=CGRectMake(versionLabel.frame.origin.x,200 , versionLabel.frame.size.width,  versionLabel.frame.size.height);
+//        version.frame=CGRectMake(version.frame.origin.x,200 , version.frame.size.width,  version.frame.size.height);
+//         MailBoxLabel.frame=CGRectMake(MailBoxLabel.frame.origin.x, 237, MailBoxLabel.frame.size.width,  MailBoxLabel.frame.size.height);
+//        mail.frame=CGRectMake(mail.frame.origin.x,237 , mail.frame.size.width,  mail.frame.size.height);
+//        telephone.frame=CGRectMake(telephone.frame.origin.x,274 , telephone.frame.size.width,  telephone.frame.size.height);
+//        telephoneLabel.frame=CGRectMake(telephoneLabel.frame.origin.x,274 , telephoneLabel.frame.size.width,  telephoneLabel.frame.size.height);
+//        telLine.frame=CGRectMake(telLine.frame.origin.x,294 , telLine.frame.size.width,  telLine.frame.size.height);
+//        telButton.frame=CGRectMake(telButton.frame.origin.x,274 , telButton.frame.size.width,  telButton.frame.size.height);
+//        officialWebsite.frame=CGRectMake(officialWebsite.frame.origin.x,311 , officialWebsite.frame.size.width,  officialWebsite.frame.size.height);
+//        
+//        officialWebsiteLabel.frame=CGRectMake(officialWebsiteLabel.frame.origin.x,311 , officialWebsiteLabel.frame.size.width,  officialWebsiteLabel.frame.size.height);
+//        
+//        officialWebsiteLine.frame=CGRectMake(officialWebsiteLine.frame.origin.x,333 , officialWebsiteLine.frame.size.width,  officialWebsiteLine.frame.size.height);
+//        urlButton.frame=CGRectMake(urlButton.frame.origin.x,311 , urlButton.frame.size.width,  urlButton.frame.size.height);
+//        
+//        
+//        Remind.frame=CGRectMake(Remind.frame.origin.x,353 , Remind.frame.size.width,  Remind.frame.size.height);
+        scrollView.frame=CGRectMake(0, 44, 320, 504);
+    }else{
+        NSLog(@"iphone4");
+        scrollView.frame=CGRectMake(0, 44, 320, 416);
+    }
+    [scrollView setContentSize:CGSizeMake(320,656)];
+ 
+}
+
+
+- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
+{
+    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    if (self) {
+        // Custom initialization
+    }
+    return self;
+}
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    // Do any additional setup after loading the view from its nib.
+    
+    [self setNavBar];
+    [self Adaptation];
+}
+-(void)viewDidAppear:(BOOL)animated{
+    [super viewDidAppear:YES];
+}
+-(void)viewWillAppear:(BOOL)animated{
+[ASGlobal hiddenBottomMenuView];//隐藏tabbar
+    [super viewWillAppear:YES];
+}
+- (void)didReceiveMemoryWarning
+{
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+/**
+ *拨打电话点击
+ */
+- (IBAction)callPhone:(id)sender
+{
+    NSString *phoneNum = [NSString stringWithFormat:@"tel://%@",telephone.text];
+    NSURL *phoneUrl = [NSURL URLWithString:phoneNum];
+    [[UIApplication sharedApplication] openURL:phoneUrl];
+}
+/**
+ 打开官网
+ */
+-(IBAction)openUrl:(id)sender{
+    [[UIApplication sharedApplication] openURL:[NSURL URLWithString:[NSString stringWithFormat:@"http://%@",officialWebsite.text]]];
+
+}
+-(void)dealloc{
+    [super dealloc];
+//    [navBar release];
+    [scrollView release];
+//    [backImage release];
+//    [logoImage release];
+//    [logoBack release];
+//   [bestLifeImage release];
+//   [versionLabel release];
+//    [version release];
+//    [MailBoxLabel release];
+//    [mail release];
+//    [telephoneLabel release];
+//    [telephone release];
+//   [officialWebsiteLabel release] ;
+//    [officialWebsite release];
+//    [Remind release];
+//    [telButton release];;
+//    [urlButton release];
+}
+@end

@@ -1,0 +1,24 @@
+//
+// Prefix header for all source files of the 'ASTorism' target in the 'ASTorism' project
+//
+
+#import <Availability.h>
+
+#ifndef __IPHONE_4_0
+#warning "This project uses features only available in iOS SDK 4.0 and later."
+#endif
+
+#ifdef __OBJC__
+    #import <UIKit/UIKit.h>
+    #import <Foundation/Foundation.h>
+    #import <AGCommon/CoreDefinition.h>
+    #import "UIView+Common.h"
+#endif
+
+#define BUNDLE_NAME @"Resource"
+
+#define IMAGE_NAME @"sharesdk_img"
+#define IMAGE_EXT @"jpg"
+
+#define CONTENT NSLocalizedString(@"TEXT_SHARE_CONTENT", @"国内首家专为银行卡持卡会员打造的旅游增值服务平台，为加盟银行卡持卡会员提供跨区域、跨行业的旅游消费优惠及个性化服务。精选众多国内3A以上景区、星级旅游酒店、特色餐饮、生活休闲服务等资源，为您全方位提供吃、住、行、游、购、娱超值优惠消费方案！更有“慧游帮”专属会员活动，免费试吃、试玩、观影、体验等活动等你来参与！还等什么，快来安装慧游天下客户端，为你的快乐加息！")
+#define SHARE_URL @"https://itunes.apple.com/cn/app/hui-you-tian-xia/id717536954?mt=8"

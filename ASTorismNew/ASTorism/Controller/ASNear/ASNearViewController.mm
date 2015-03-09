@@ -1,0 +1,1193 @@
+ //
+//  ASNearViewController.m
+//  ASTourism
+//
+//  Created by apple  on 13-8-13.
+//  Copyright (c) 2013年 AS. All rights reserved.
+//
+
+#import "ASNearViewController.h"
+#import "ASNearCell.h"
+#import "ASMerchantInfoViewController.h"
+#import "ASBackView.h"
+#import "ASNearCell.h"
+#import <QuartzCore/QuartzCore.h>
+#import "UIDevice+Resolutions.h"
+#import "ASGlobal.h"
+#import "ASMerchantDetailInfo.h"
+#import "ASActivityIndcatorView.h"
+//#import "UrlImageView.h"
+#import "UIImageView+AFNetworking.h"
+@interface ASNearViewController ()
+{
+    IBOutlet    UIButton *categoryChooseButton;//分类选择按钮
+    IBOutlet    UIButton *distanceChooseButton;//距离选择按钮
+    NavigationBar *navBar;
+    ASCategoryChooseView *mainCategoryView;
+
+    ASdistanceChooseView *distanceView;
+    BOOL isDistanceClick;//判断距离选择按钮是否被点击
+    BOOL isCategoryClick;//判断种类选择按钮是否被点击
+   
+    
+    IBOutlet UILabel *categoryLabel;//分类label
+    IBOutlet UILabel *distanceLabel;//距离label
+    IBOutlet UIImageView *categoryImage;
+    IBOutlet UIImageView *distanceImage;
+    
+    IBOutlet UIView *selectBack;//按钮背景  
+    ASBackView *backView;//背景  在selectBack下面插入
+    
+    
+    ASTableHeaderView *_refreshHeaderView;
+    BOOL _reloading;//主要是记录是否在刷新中
+    
+//    NSMutableArray *nearArray;
+    
+    UILabel *moreLabel;//加载更多
+    int currentPage; //加载当前页数
+    int totalPage;
+
+//    NSString *categoryId;//种类id
+//    NSString *distanceStr;//距离
+//    NSString  *longitude;//精度
+//    NSString *latitude;//纬度
+    
+    BOOL isPullRefresh;//判断是否是下拉刷新    yes为下拉刷新
+    BOOL isBack;//判断是否是从详情界面返回的    yes为是    怎viewdidiapper时不重新加载数据
+}
+//mapView
+@property (nonatomic,retain)BMKMapView *mapView;
+@property (nonatomic,retain)IBOutlet UITableView *nearTableView;
+//下拉刷新
+//@property(nonatomic,retain) UIActivityIndicatorView *activityIndicatorView;
+//进入页面时的加载提示
+@property (nonatomic,retain) ASActivityIndcatorView *indcatorView;
+@property (nonatomic,retain)NSString *categoryId;//种类id
+@property (nonatomic,retain)NSString *distanceStr;//距离
+@property (nonatomic,copy)NSString  *longitude;//精度
+@property (nonatomic,copy)NSString *latitude;//纬度
+@property (nonatomic,retain) NSArray *categoryArray;//存放本地获取的所有类别
+@property (nonatomic,retain)NSMutableArray *nearArray;
+
+//距离选择事件
+-(IBAction)distanceButtonClick:(id)sender;
+//种类选择事件
+-(IBAction)categoryButtonClick:(id)sender;
+@end
+
+@implementation ASNearViewController
+
+@synthesize nearTableView=_nearTableView;
+@synthesize mapView=_mapView;
+@synthesize indcatorView=_indcatorView;
+@synthesize categoryId=_categoryId;
+@synthesize distanceStr=_distanceStr;
+@synthesize longitude=_longitude;
+@synthesize latitude=_latitude;
+@synthesize categoryArray=_categoryArray;
+@synthesize nearArray=_nearArray;
+/*
+ *setNavBar
+ *无参数
+ *设置navigationBar
+ *无返回
+ */
+-(void)setNavBar{
+    //设置导航栏背景
+    self.navigationController.navigationBarHidden=YES;
+    /*
+     自定义NavgationBar
+     */
+    if (nil==navBar) {
+        navBar=[ [[NSBundle mainBundle]loadNibNamed:@"NavigationBar" owner:nil options:nil]objectAtIndex:0];
+    }
+    navBar.titleLabel.font=[UIFont boldSystemFontOfSize:19];
+    navBar.Delegate=self;
+    navBar.searchButton.hidden=YES;
+    navBar.BackButton.hidden=YES;
+    navBar.backImage.hidden=YES;
+    navBar.searchImage.hidden=YES;
+    navBar.cityButton.hidden=YES;
+    navBar.cityImage.hidden=YES;
+    navBar.titleLabel.text=@"周边";
+    
+    //适配navBar
+    if ([UIDevice systemMajorVersion] < 7) {
+        navBar.frame = CGRectMake(0, 0, SCREENWIDTH, 44);
+    }else
+        navBar.frame = CGRectMake(0, 0, SCREENWIDTH, 64);
+    [self.view addSubview:navBar];
+}
+#pragma navigationBarDelegate
+-(void)NavSearchButtonClick{
+}
+-(void)NavCityButtonClick{
+}
+-(void)NavBarBackClick{
+}
+#pragma Adaptation 适配
+-(void)Adaptation{
+    CGRect rect;
+    
+    if ([UIDevice systemMajorVersion] < 7) {
+        selectBack.frame = CGRectMake(0, 44, SCREENWIDTH, selectBack.frame.size.height);
+         rect = CGRectMake(0, 44 + selectBack.frame.size.height, SCREENWIDTH, SCREENHEIGHT - 44 - selectBack.frame.size.height);
+    }else{
+        selectBack.frame = CGRectMake(0, 64, SCREENWIDTH, selectBack.frame.size.height);
+        rect = CGRectMake(0, 64 + selectBack.frame.size.height, SCREENWIDTH, SCREENHEIGHT - 64 - selectBack.frame.size.height);
+    }
+    _nearTableView.frame = rect;
+    //[self lw_setIOS7Special];
+}
+
+- (void)lw_setIOS7Special
+{
+    if ([UIDevice systemMajorVersion] >= 7) {
+        self.edgesForExtendedLayout = UIRectEdgeNone;
+        self.extendedLayoutIncludesOpaqueBars=NO;
+        self.automaticallyAdjustsScrollViewInsets=NO;
+    }
+}
+
+- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
+{
+    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    if (self) {
+        // Custom initialization
+    }
+    return self;
+}
+
+- (void)viewDidLoad
+{
+    
+    [super viewDidLoad];
+//    moreLabel = [[UILabel alloc] initWithFrame:CGRectMake(0,12,320, 20)];
+    
+    
+//    self.mapView =[[BMKMapView alloc]initWithFrame:CGRectMake(0, 0, 0, 0)];
+//    [self.view addSubview:self.mapView];
+    _mapView.frame = CGRectMake(0, 0, 0, 0);
+    _mapView.delegate = self; // 此处记得不用的时候需要置nil，否则影响内存的释放
+    // _mapView.showsUserLocation = NO;//先关闭显示的定位图层
+    //    _mapView.userTrackingMode = BMKUserTrackingModeNone;//设置定位的状态
+    _mapView.showsUserLocation = YES;//显示定位图层
+    
+    isBack=NO;//初始化isBack为no
+    isPullRefresh=NO;//初始化isPullRefresh为NO，代表此时不是下拉刷新
+    currentPage=1;
+    totalPage=-1;
+    moreLabel.text=@"加载更多";
+   _nearTableView.hidden=YES;
+       
+    // Do any additional setup after loading the view from its nib.
+    [self setEGO];
+    //从city.plist文件中获得类别的信息
+    NSString *categoryPath=[[NSBundle mainBundle]pathForResource:@"category" ofType:@"plist"];
+    self.categoryArray=[[NSArray alloc]initWithContentsOfFile:categoryPath];
+    
+    
+        //初始设置分类和距离均为全部
+//    _longitude=[[NSString alloc]init];
+//    latitude=[[NSString alloc]init];
+//    categoryId=[[NSString alloc]init];
+//    distanceStr=[[NSString alloc]init];
+    _distanceStr = @"";
+    distanceLabel.text=@"全部";
+    categoryLabel.text=@"分类";
+    self.categoryId=@"0";
+    
+    
+//    nearArray=[[NSMutableArray alloc]initWithCapacity:0];
+}
+
+- (void)didReceiveMemoryWarning
+{
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+-(void)dealloc{
+    [super dealloc];
+    [_categoryId release];
+    [_distanceStr release];
+    [_longitude release];
+    [_latitude release];
+    [_nearTableView release];
+//    [navBar release];
+    [categoryChooseButton release];
+    [distanceChooseButton release];
+    [_refreshHeaderView release];
+    [mainCategoryView release];
+    [categoryLabel release];
+    [distanceLabel release];
+    [distanceImage release];
+    [categoryImage release];
+    [backView release];
+    [_nearArray release];
+    [moreLabel release];
+    [_mapView release];
+    [_indcatorView release];
+  
+}
+-(void)viewWillAppear:(BOOL)animated{
+    [ASGlobal showAOTabbar];//显示tabbar
+    [_mapView viewWillAppear];
+}
+-(void)viewDidAppear:(BOOL)animated{
+    [super viewDidAppear:YES];
+    
+    //设置导航栏并适配
+    [self setNavBar];
+    [self Adaptation];
+//    //初始设置分类和距离均为全部
+//    longitude=[[NSString alloc]init];
+//    latitude=[[NSString alloc]init];
+//    categoryId=[[NSString alloc]init];
+//    distanceStr=[[NSString alloc]init];
+//    distanceStr=@"";
+//    distanceLabel.text=@"全部";
+//    categoryLabel.text=@"全部";
+//    categoryId=@"0";
+//    if (isBack) {
+//        isBack =NO;
+//    }else{
+//        _mapView.showsUserLocation = NO;//先关闭显示的定位图层
+//        //    _mapView.userTrackingMode = BMKUserTrackingModeNone;//设置定位的状态
+//        _mapView.showsUserLocation = YES;//显示定位图层
+//    }
+//   
+    
+
+}
+
+#pragma mark - mapViewDelegate
+
+//地图定位
+//普通态
+-(void)startLocation
+{
+    _mapView.showsUserLocation = NO;//先关闭显示的定位图层
+    //    _mapView.userTrackingMode = BMKUserTrackingModeNone;//设置定位的状态
+    _mapView.showsUserLocation = YES;//显示定位图层
+}
+//停止定位
+-(void)stopLocation
+{
+    _mapView.showsUserLocation = NO;
+}
+//在地图View将要启动定位时，会调用此函数
+- (void)mapViewWillStartLocatingUser:(BMKMapView *)mapView
+{
+}
+/**
+ *用户位置更新后，会调用此函数
+ *@param mapView 地图View
+ *@param userLocation 新的用户位置
+ */
+
+- (void)mapView:(BMKMapView *)mapView didUpdateUserLocation:(BMKUserLocation *)userLocation
+{
+    NSLog(@"zoulemei");
+	if (userLocation != nil) {
+        
+        self.latitude=[NSString stringWithFormat:@"%f",userLocation.location.coordinate.latitude];
+        self.longitude=[NSString stringWithFormat:@"%f",userLocation.location.coordinate.longitude];
+        currentPage=1;
+        totalPage=-1;
+        
+        NSLog(@"User's location is %f,%f",userLocation.location.coordinate.latitude,userLocation.location.coordinate.longitude);
+        
+        [self reloadTableViewDataSource];
+        
+        _mapView.showsUserLocation=NO;
+	}else{
+        UIAlertView *alert=[[UIAlertView alloc]initWithTitle:@"提示" message:@"定位失败,请检查定位！" delegate:self cancelButtonTitle:@"确定" otherButtonTitles:nil];
+        [alert show];
+        [alert release];
+    }
+	
+}
+/**
+ *在地图View停止定位后，会调用此函数
+ *@param mapView 地图View
+ */
+- (void)mapViewDidStopLocatingUser:(BMKMapView *)mapView
+{
+    NSLog(@"stop locate");
+}
+
+/**
+ *定位失败后，会调用此函数
+ *@param mapView 地图View
+ *@param error 错误号，参考CLError.h中定义的错误号
+ */
+- (void)mapView:(BMKMapView *)mapView didFailToLocateUserWithError:(NSError *)error
+{
+    NSLog(@"location error====%@",error);
+    [self stopAnimating];
+    UIAlertView *alert=[[UIAlertView alloc]initWithTitle:@"提示" message:@"定位失败,请检查定位！" delegate:self cancelButtonTitle:@"确定" otherButtonTitles:nil];
+    [alert show];
+    [alert release];
+}
+
+#pragma mark - UITableViewDataSource
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
+{
+//    //    if (nearArray.count>10) {
+//    return _nearArray.count+1;
+//    //    }else{
+//    //        return nearArray.count;
+//    //    }
+    if (_nearArray.count>0) {
+        return _nearArray.count+1;
+    }else{
+        return 0;
+    }
+    
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    id cell=nil;
+    if (indexPath.row<_nearArray.count) {
+        static NSString *identifier=@"searchResultCellIdentifier";
+        
+        //    int row=indexPath.row;
+        ASNearCell *recommandCell=nil;
+        recommandCell=[tableView dequeueReusableCellWithIdentifier:identifier];
+        if (nil==recommandCell) {
+            recommandCell=[[[NSBundle mainBundle]loadNibNamed:@"ASNearCell" owner:nil options:nil]objectAtIndex:0];
+            //设置cell的背景颜色
+            recommandCell.contentView.backgroundColor=[UIColor whiteColor];
+            
+            //设置选中图片
+            UIImageView *selectImageView = [[UIImageView alloc] initWithImage: [UIImage imageNamed:@"libiaoxuanzhong.png"]];
+            recommandCell.selectedBackgroundView = selectImageView;
+            [selectImageView release];
+        }
+        
+        ASMerchantDetailInfo *info= [_nearArray objectAtIndex:indexPath.row];
+        recommandCell.name.text=info.name;
+        
+//        //测试===============
+//        NSArray *discountArr=[info.discount componentsSeparatedByString:@"_"];
+//        NSString *yuan=[discountArr objectAtIndex:1];
+//        NSString *xian=[discountArr objectAtIndex:0];
+        recommandCell.info.text=info.discount;
+        
+        
+        
+        
+        
+        
+        if ([_distanceStr isEqualToString:@""]) {
+            recommandCell.distance.text=@"全部";
+        }else{
+            recommandCell.distance.text=[NSString stringWithFormat:@"距离%@米",_distanceStr];
+        }
+        
+        if (nil!=info.imageURL&&info.imageURL.length>0) {
+            NSString *strImgURL=[NSString stringWithFormat:@"%@", info.imageURL];
+            UIImageView *imageView = [[UIImageView alloc]initWithFrame:CGRectMake(recommandCell.image.frame.origin.x, recommandCell.image.frame.origin.y, recommandCell.image.frame.size.width, recommandCell.image.frame.size.height)];
+            imageView.backgroundColor=[UIColor clearColor];
+//            imageView.contentMode = UIViewContentModeScaleAspectFit;
+            [imageView setImageWithURL:[NSURL URLWithString:strImgURL]placeholderImage:nil];
+            [recommandCell addSubview:imageView];
+            [imageView release];
+        }
+        cell=recommandCell;
+        
+    }else {
+        static NSString *identifierMore=@"more";
+        UITableViewCell *moreCell = [tableView dequeueReusableCellWithIdentifier:identifierMore];
+        if (nil==moreCell )
+        {
+            moreCell = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifierMore] autorelease] ;
+            if (nil==moreLabel) {
+                moreLabel = [[UILabel alloc] initWithFrame:CGRectMake(0,12,320, 20)];
+//                [moreLabel setFrame:CGRectMake(0,12,320, 20)];
+                [moreLabel setFont:[UIFont systemFontOfSize:13]];
+                moreLabel.tag = 1010;
+                [moreLabel setTextAlignment:NSTextAlignmentCenter];
+            }
+//            [moreLabel removeFromSuperview];
+            [moreCell addSubview:moreLabel];
+            [moreCell  setSelectionStyle:UITableViewCellSelectionStyleNone];
+        }
+        if (totalPage==currentPage) {
+            moreLabel.text=@"没有更多数据";
+        }else{
+            moreLabel.text=@"加载更多";
+        }
+        
+        cell=moreCell;
+    }
+     return cell;
+}
+#pragma mark - UITableViewDelegate
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    if (indexPath.row<_nearArray.count){
+        return 93;
+    }else{
+        return  44;
+    }
+    
+}
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    
+    if (indexPath.row<_nearArray.count) {
+        
+        isBack=YES;
+       ASMerchantInfoViewController * merchantInfoViewController = [[ASMerchantInfoViewController alloc] initWithNibName:@"ASMerchantInfoViewController" bundle:nil];
+        merchantInfoViewController.merchantDetail=[_nearArray objectAtIndex:indexPath.row];
+//    [self.navigationController pushViewController: merchantInfoViewController
+//                                                          animated: YES];
+        @try {
+            [self.navigationController pushViewController: merchantInfoViewController
+                                                 animated: YES];
+        }
+        @catch (NSException * ex) {
+            //“Pushing the same view controller instance more than once is not supported”
+            //NSInvalidArgumentException
+            //Full error includes class pointer address so only care if it starts with this error
+            NSRange range = [ex.reason rangeOfString:@"Pushing the same view controller instance more than once is not supported"];
+            
+            if([ex.name isEqualToString:@"NSInvalidArgumentException"] &&
+               range.location != NSNotFound)
+            {
+                //view controller already exists in the stack - just pop back to it
+                [self.navigationController pushViewController: merchantInfoViewController
+                                                     animated: YES];
+            }else{
+                NSLog(@"ERROR:UNHANDLED EXCEPTION TYPE:%@", ex);
+            }
+        }
+        @finally {
+            //NSLog(@"finally");
+        }
+        [merchantInfoViewController release];
+    }else{
+        if (currentPage!=totalPage&&moreLabel&&_nearArray.count>0) {
+            currentPage++;
+            moreLabel.text=@"正在加载中";
+            [self reloadTableViewDataSource];
+        }
+        
+    }
+    [tableView deselectRowAtIndexPath: indexPath
+                             animated: YES];
+}
+
+#pragma 初始化ASDistanceChooseView和ASCategoryChooseView和ASCategoryDetailView
+-(void)initViews{
+    
+    if (nil==backView) {
+        backView=[[[NSBundle mainBundle]loadNibNamed:@"ASBackView" owner:nil options:nil]objectAtIndex:0];
+        if ([UIDevice isRunningOniPhone5]) {
+            backView.frame=CGRectMake(0,-253 ,320 , 300);
+        }else{
+            backView.frame=CGRectMake(0,-253 ,320 , 357);
+        }
+        backView.alpha=0.3;
+    }
+    
+    [self.view insertSubview:backView aboveSubview:navBar];
+    
+    [self initMainCategoryView];
+    [self initDistanceView];
+}
+//初始化MainCategoryView
+-(void)initMainCategoryView{
+    if (nil==mainCategoryView) {
+        mainCategoryView=[[[NSBundle mainBundle]loadNibNamed:@"ASCategoryChooseView" owner:nil options:nil]objectAtIndex:0];
+        mainCategoryView.frame=CGRectMake(0, -224, 320, 308);
+        mainCategoryView.delegate=self;
+        
+        
+        [self.view insertSubview:mainCategoryView belowSubview:categoryImage];
+        //获取主类数组
+        
+       mainCategoryView.maincategoryArray=[[NSMutableArray alloc]initWithCapacity:0];
+        for (NSDictionary *dic in _categoryArray) {
+            NSString *str=[[dic allKeys]objectAtIndex:0];
+           
+            if (nil!=str &&str.length>0) {
+                [mainCategoryView.maincategoryArray addObject:str];
+            }
+        }
+      
+       
+        if (mainCategoryView.maincategoryArray.count>0) {
+            [mainCategoryView.mainCategoryTable reloadData];
+            NSIndexPath *ip=[NSIndexPath indexPathForRow:0 inSection:0];
+            [mainCategoryView.mainCategoryTable selectRowAtIndexPath:ip animated:YES scrollPosition:UITableViewScrollPositionBottom];
+            [self MainCategoryChoose:[mainCategoryView.maincategoryArray objectAtIndex:0] mainID:@"0"];
+        }
+        isCategoryClick=YES;
+    }
+}
+//初始化DistanceView
+-(void)initDistanceView{
+    if (nil==distanceView) {
+        distanceView=[[[NSBundle mainBundle]loadNibNamed:@"ASdistanceChooseView" owner:nil options:nil]objectAtIndex:0];
+        distanceView.frame=CGRectMake(0, -108, 320, 68);
+        distanceView.delegate=self;
+        isDistanceClick=YES;
+    }
+    [self.view bringSubviewToFront:selectBack];
+    [self.view bringSubviewToFront:navBar];
+    
+    [self.view insertSubview:distanceView belowSubview:selectBack];
+}
+#pragma 隐藏chooseViews
+-(void)hiddeViews{
+  
+
+    isCategoryClick=YES;
+    isDistanceClick=YES;
+    [distanceImage setImage:[UIImage imageNamed:@"fenleishaixuan1.png"]];
+    [categoryImage setImage:[UIImage imageNamed:@"fenleishaixuan1.png"]];
+
+    [self.view bringSubviewToFront:selectBack];
+    [self.view bringSubviewToFront:navBar];
+    [self.view insertSubview:mainCategoryView belowSubview:selectBack];
+    [self.view insertSubview:distanceView belowSubview:selectBack];
+    [UIView animateWithDuration:0.5 animations:^{
+        if ([UIDevice systemMajorVersion] < 7) {
+            NSLog(@"iphone4");
+            backView.frame = CGRectMake(0, -_nearTableView.frame.size.height, SCREENWIDTH, backView.frame.size.height);
+        }else{
+            NSLog(@"iphone5");
+            backView.frame = CGRectMake(0, -_nearTableView.frame.size.height, SCREENWIDTH, backView.frame.size.height);
+        }
+        
+        mainCategoryView.frame=CGRectMake(0, -_nearTableView.frame.size.height, SCREENWIDTH, mainCategoryView.frame.size.height);
+        distanceView.frame=CGRectMake(0, -_nearTableView.frame.size.height, SCREENWIDTH, distanceView.frame.size.height);
+    }];
+}
+//距离选择事件
+-(IBAction)distanceButtonClick:(id)sender{
+     [self initViews];
+     if (isDistanceClick) {
+         [distanceImage setImage:[UIImage imageNamed:@"xuanzhongfenleishanxuan1.png"]];
+         [categoryImage setImage:[UIImage imageNamed:@"fenleishaixuan1.png"]];
+
+         [self.view bringSubviewToFront:selectBack];
+         [self.view bringSubviewToFront:navBar];
+         
+         [self.view insertSubview:distanceView belowSubview:selectBack];
+        [UIView animateWithDuration:0.5 animations:^{
+
+            if ([UIDevice systemMajorVersion] < 7) {
+                NSLog(@"iphone4");
+                backView.frame = CGRectMake(0, _nearTableView.frame.origin.y, SCREENWIDTH, SCREENHEIGHT - _nearTableView.frame.origin.y - 49);
+            }else{
+                NSLog(@"iphone5");
+                backView.frame = CGRectMake(0, _nearTableView.frame.origin.y, SCREENWIDTH, SCREENHEIGHT - _nearTableView.frame.origin.y - 49);
+            }
+           
+        mainCategoryView.frame=CGRectMake(0, -_nearTableView.frame.size.height, SCREENWIDTH, mainCategoryView.frame.size.height);
+        distanceView.frame=CGRectMake(0, _nearTableView.frame.origin.y, SCREENWIDTH, distanceView.frame.size.height);
+        }];
+         isCategoryClick=YES;
+         isDistanceClick=!isDistanceClick;
+         //默认选中第一行
+        
+    }else{
+        [self hiddeViews];
+    }
+}
+//种类选择事件
+-(IBAction)categoryButtonClick:(id)sender{
+     [self initViews];
+        if (isCategoryClick) {
+            [distanceImage setImage:[UIImage imageNamed:@"fenleishaixuan1.png"]];
+            [categoryImage setImage:[UIImage imageNamed:@"xuanzhongfenleishanxuan1.png"]];
+
+            isDistanceClick=YES;
+            isCategoryClick=NO;
+            [self.view insertSubview:mainCategoryView aboveSubview:backView];
+            [UIView animateWithDuration:0.5 animations:^{
+
+                if ([UIDevice systemMajorVersion] < 7) {
+                    NSLog(@"iphone4");
+                    backView.frame = CGRectMake(0, _nearTableView.frame.origin.y, SCREENWIDTH, SCREENHEIGHT - _nearTableView.frame.origin.y - 49);
+                }else {
+                    NSLog(@"iphone5");
+                    backView.frame = CGRectMake(0, _nearTableView.frame.origin.y, SCREENWIDTH, SCREENHEIGHT - _nearTableView.frame.origin.y - 49);
+                }
+            mainCategoryView.frame=CGRectMake(0,backView.frame.origin.y, SCREENWIDTH, mainCategoryView.frame.size.height);
+            distanceView.frame=CGRectMake(0, - backView.frame.size.height, SCREENWIDTH, distanceView.frame.size.height);
+        }];
+    }else{
+        [self hiddeViews];
+    }
+    
+}
+#pragma MainCategoryChooseDelegate
+-(void)categoryChoose:(NSString *)category ID:(NSString *)cid{
+    categoryLabel.text=category;
+    self.categoryId= cid;
+    [self hiddeViews];
+    [self startAnimating];
+    _mapView.showsUserLocation = NO;//先关闭显示的定位图层
+    //    _mapView.userTrackingMode = BMKUserTrackingModeNone;//设置定位的状态
+    _mapView.showsUserLocation = YES;//显示定位图层 并加载数据
+    
+}
+-(void)MainCategoryChoose:(NSString *)mainCategory mainID:(NSString *)mainId{
+    for (NSDictionary *dic in _categoryArray) {
+        NSString *str=[[dic allKeys]objectAtIndex:0];
+        if (nil!=str &&str.length>0) {
+            if ([str isEqualToString:mainCategory]) {
+                mainCategoryView.categoryDetailArray=[dic objectForKey:mainCategory];
+            }
+        }
+    }
+    for (id button in mainCategoryView.scrollView.subviews) {
+        if ([button isKindOfClass:[UIButton class]]||[button isKindOfClass:[UIView class]]) {
+            [button removeFromSuperview];
+        }
+    }
+    //页面设置buttons
+    if (mainCategoryView.categoryDetailArray.count>0) {
+        [mainCategoryView setButtons];
+    }
+//    categoryId=[[NSString alloc]initWithString: mainId];
+}
+#pragma DistanceChooseDelegate
+-(void)distanceChoose:(NSString *)distance{
+    if ([distance isEqualToString:@""]) {
+        distanceLabel.text=@"全部";
+    }else{
+        distanceLabel.text=[NSString stringWithFormat:@"%@米",distance];
+    }
+    [self hiddeViews];
+    self.distanceStr=distance ;
+    [self startAnimating];
+    _mapView.showsUserLocation = NO;//先关闭显示的定位图层
+    //    _mapView.userTrackingMode = BMKUserTrackingModeNone;//设置定位的状态
+    _mapView.showsUserLocation = YES;//显示定位图层
+}
+
+#pragma table滑动
+
+//
+-(void)setEGO{
+    if(_refreshHeaderView == nil)
+    {
+        ASTableHeaderView *view = [[ASTableHeaderView alloc] initWithFrame:CGRectMake(0.0f, 0.0f - _nearTableView.bounds.size.height, self.view.frame.size.width, _nearTableView.bounds.size.height)];
+        
+        view.delegate = self;
+        [_nearTableView addSubview:view];
+        _refreshHeaderView = view;
+    }
+    [_refreshHeaderView refreshLastUpdatedDate];
+    
+}
+
+
+//-----//请求网络加载数据
+-(void)reloadTableViewDataSource
+{
+    _nearTableView.userInteractionEnabled=NO;
+    _reloading=YES;
+    //开启加载动画
+    [self startAnimating];
+    if (_nearArray.count>0&&currentPage==1) {
+        [_nearArray removeAllObjects];
+    }
+    NSString *pageCountStr = [[NSString alloc] initWithFormat: @"%d",currentPage];
+
+    NSDictionary *parametersDic=nil;
+    if ([_categoryId isEqualToString:@"0"]) {
+        parametersDic=[[NSDictionary alloc]initWithObjectsAndKeys:_latitude,@"latitude",_longitude,@"longitude",pageCountStr,PAGENONUMER,PAGENUMBER,PAGESIZENUMBER,_distanceStr,@"radius", nil];
+    }else{
+        parametersDic=[[NSDictionary alloc]initWithObjectsAndKeys:_latitude,@"latitude",_longitude,@"longitude",_categoryId,@"cateTypeId",pageCountStr,PAGENONUMER,PAGENUMBER,PAGESIZENUMBER,_distanceStr,@"radius", nil];
+    }
+    
+//    NSLog(@"%@",parametersDic);
+
+    ASIFormDataRequest *request= [[ASIFormDataRequest alloc] initWithURL:[NSURL URLWithString:REQUESTURL]];
+   
+    [request setDelegate:self];
+    [request setTimeOutSeconds:5];
+    for (NSString *key in [parametersDic allKeys]) {
+        NSString *value=[parametersDic objectForKey:key];
+        [request setPostValue:value forKey:key];
+    }
+
+    [request startAsynchronous];//异步加载
+    [request release];
+    [parametersDic release];
+    [pageCountStr release];
+
+    
+}
+- (void)doneLoadingTableViewData{
+    
+    NSLog(@"===加载完数据");
+
+    
+    [_refreshHeaderView egoRefreshScrollViewDataSourceDidFinishedLoading:_nearTableView];
+}
+#pragma mark –
+#pragma mark UIScrollViewDelegate Methods
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView{
+    
+    [_refreshHeaderView egoRefreshScrollViewDidScroll:scrollView];
+    
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate{
+    
+    if (totalPage==currentPage) {
+        moreLabel.text=@"没有更多数据";
+    }else{
+        moreLabel.text=@"加载更多";
+    }
+
+
+    [_refreshHeaderView egoRefreshScrollViewDidEndDragging:scrollView];
+    
+}
+
+#pragma mark –
+#pragma mark EGORefreshTableHeaderDelegate Methods
+- (void)egoRefreshTableHeaderDidTriggerRefresh:(ASTableHeaderView*)view{
+    isPullRefresh=YES;
+    currentPage=1;
+    totalPage=-1;
+    [self startAnimating];
+    _mapView.showsUserLocation = NO;//先关闭显示的定位图层
+    //    _mapView.userTrackingMode = BMKUserTrackingModeNone;//设置定位的状态
+    _mapView.showsUserLocation = YES;//显示定位图层
+   
+    
+    
+    
+}
+- (BOOL)egoRefreshTableHeaderDataSourceIsLoading:(ASTableHeaderView*)view{
+    
+    return _reloading; // should return if data source model is reloading
+    
+}
+- (NSDate*)egoRefreshTableHeaderDataSourceLastUpdated:(ASTableHeaderView*)view{
+    
+    return [NSDate date]; // should return date data source was last changed
+    
+}
+//上啦加载更多
+-(void)egoUploadMoreWithPull{
+    if (currentPage!=totalPage&&moreLabel&&_nearArray.count>0) {
+        currentPage++;
+        moreLabel.text=@"正在加载中";
+        [self reloadTableViewDataSource];
+    }
+}
+-(void)egoUploadMoreWithIsPulling{
+//    if (moreLabel&&currentPage!=totalPage) {
+//        moreLabel.text=@"松开加载更多";
+//    }
+}
+
+
+
+
+
+
+
+///*
+// 加载动画开始
+// */
+-(void)startAnimating{
+    //加载动画
+    
+    if (nil == _indcatorView)
+    {
+        _indcatorView = [[ASActivityIndcatorView alloc] init];
+    }
+    [_indcatorView showIndicator];
+    //    [activityIndicatorView startAnimating];
+    //    [certificateTableView addSubview: activityIndicatorView];
+    //    [certificateTableView sendSubviewToBack: activityIndicatorView];
+   _nearTableView.userInteractionEnabled=NO;
+}
+/*
+ 加载动画结束
+ */
+-(void)stopAnimating{
+    //    [activityIndicatorView stopAnimating];
+    //    [activityIndicatorView removeFromSuperview];
+    _nearTableView.userInteractionEnabled=YES;
+    [_indcatorView dimissIndicator];
+    
+}
+//网络请求返回的方法
+//-(void)ASIRequestFinished:(NSString *)requestResult{
+////    NSLog(@"%@",requestResult);
+//    NSDictionary *responseDict = [requestResult objectFromJSONString];
+////    NSLog(@"%@",responseDict);
+//    NSArray *arr=[responseDict objectForKey:@"root"];
+//    NSMutableArray *array=[[NSMutableArray alloc]initWithArray:nearArray ];
+//    for (NSDictionary *dic in arr) {
+//        ASMerchantDetailInfo *info=[[ASMerchantDetailInfo alloc]init];
+//        NSString *ids=[NSString stringWithFormat:@"%@",[dic objectForKey:@"ids"]];
+//        if ([ids isEqualToString:@"<null>"]||[ids isEqualToString:@""]) {
+//            ids=@"";
+//        }
+//        info.ids=ids;
+//        NSString *name=[NSString stringWithFormat:@"%@",[dic objectForKey:@"name"]];
+//        if ([name isEqualToString:@"<null>"]||[name isEqualToString:@""]) {
+//            name=@"";
+//        }
+//        info.name=name;
+//        NSString *city=[NSString stringWithFormat:@"%@",[dic objectForKey:@"cityName"]];
+//        if ([city isEqualToString:@"<null>"]||[city isEqualToString:@""]) {
+//            city=@"";
+//        }
+//        info.city=city;
+//        NSString *address=[NSString stringWithFormat:@"%@",[dic objectForKey:@"address"]];
+//        if ([address isEqualToString:@"<null>"]||[address isEqualToString:@""]) {
+//            address=@"";
+//        }
+//        info.address=address;
+//        NSString *discount=[NSString stringWithFormat:@"%@",[dic objectForKey:@"discount"]];
+//        if ([discount isEqualToString:@"<null>"]||[discount isEqualToString:@""]) {
+//            discount=@"";
+//        }
+//        info.discount=discount;
+//        NSString *createTime=[NSString stringWithFormat:@"%@",[dic objectForKey:@"createTime"]];
+//        if ([createTime isEqualToString:@"<null>"]||[createTime isEqualToString:@""]) {
+//            createTime=@"";
+//        }
+//        info.createTime=createTime;
+//        NSString *imageURL=[NSString stringWithFormat:@"%@",[dic objectForKey:@"imageURL"]];
+//        if ([imageURL isEqualToString:@"<null>"]||[imageURL isEqualToString:@""]) {
+//            imageURL=@"";
+//        }
+//        info.imageURL=imageURL;
+//        NSString *imageURLMAX=[NSString stringWithFormat:@"%@",[dic objectForKey:@"imageURLMAX"]];
+//        if ([imageURLMAX isEqualToString:@"<null>"]||[imageURLMAX isEqualToString:@""]) {
+//            imageURLMAX=@"";
+//        }
+//        info.imageURLMAX=imageURLMAX;
+//        NSString *introduction=[NSString stringWithFormat:@"%@",[dic objectForKey:@"introduction"]];
+//        if ([introduction isEqualToString:@"<null>"]||[introduction isEqualToString:@""]) {
+//            introduction=@"";
+//        }
+//        info.introduction=introduction;
+//        NSString *latitude1=[NSString stringWithFormat:@"%@",[dic objectForKey:@"latitude"]];
+//        if ([latitude1 isEqualToString:@"<null>"]||[latitude1 isEqualToString:@""]) {
+//            latitude1=@"";
+//        }
+//        info.latitude=latitude1;
+//        NSString *longitude1=[NSString stringWithFormat:@"%@",[dic objectForKey:@"longitude"]];
+//        if ([longitude1 isEqualToString:@"<null>"]||[longitude1 isEqualToString:@""]) {
+//            longitude1=@"";
+//        }
+//        info.longitude=longitude1;
+//        NSString *remark=[NSString stringWithFormat:@"%@",[dic objectForKey:@"remark"]];
+//        if ([remark isEqualToString:@"<null>"]||[remark isEqualToString:@""]) {
+//            remark=@"";
+//        }
+//        info.remark=remark;
+//        NSString *stars=[NSString stringWithFormat:@"%@",[dic objectForKey:@"stars"]];
+//        if ([stars isEqualToString:@"<null>"]||[stars isEqualToString:@""]) {
+//            stars=@"";
+//        }
+//        info.stars=stars;
+//        NSString *status=[NSString stringWithFormat:@"%@",[dic objectForKey:@"status"]];
+//        if ([status isEqualToString:@"<null>"]||[status isEqualToString:@""]) {
+//            status=@"";
+//        }
+//        info.status=status;
+//        
+//        NSString *tel=[NSString stringWithFormat:@"%@",[dic objectForKey:@"tel"]];
+//        if ([tel isEqualToString:@"<null>"]||[tel isEqualToString:@""]) {
+//            tel=@"";
+//        }
+//        info.tel=tel;
+//        NSString *type=[NSString stringWithFormat:@"%@",[dic objectForKey:@"type"]];
+//        if ([type isEqualToString:@"<null>"]||[type isEqualToString:@""]) {
+//            type=@"";
+//        }
+//        info.type=type;
+//        NSString *visible=[NSString stringWithFormat:@"%@",[dic objectForKey:@"visible"]];
+//        if ([visible isEqualToString:@"<null>"]||[visible isEqualToString:@""]) {
+//            visible=@"";
+//        }
+//        info.visible=visible;
+//        NSString *changed=[NSString stringWithFormat:@"%@",[dic objectForKey:@"changed"]];
+//        if ([changed isEqualToString:@"<null>"]||[changed isEqualToString:@""]) {
+//            changed=@"";
+//        }
+//        info.changed=changed;
+//        
+//        [array addObject:info];
+//        [info release];
+//    }
+//    nearArray=[[NSMutableArray alloc]initWithArray:array];
+//    [array release];
+//    if (arr.count<[PAGENUMBER intValue]) {
+//        totalPage=currentPage;
+//    }
+//    if (nearArray.count>0) {
+//        _nearTableView.hidden=NO;
+//    }else{
+//        _nearTableView.hidden=YES;
+//        UIAlertView *alert=[[UIAlertView alloc]initWithTitle:@"提示" message:@"目前没有商家信息！" delegate:nil cancelButtonTitle:@"确定" otherButtonTitles:nil];
+//        [alert show];
+//        [alert release];
+//    }
+//    moreLabel.hidden=NO;
+//    _reloading = NO;
+//    if (totalPage==currentPage) {
+//        moreLabel.text=@"没有更多数据";
+//    }else{
+//        moreLabel.text=@"加载更多";
+//    }
+//    if (isPullRefresh) {
+//        isPullRefresh=NO;
+//    }else{
+//        if (currentPage==1) {
+//            [_nearTableView setContentOffset:CGPointMake(0, 0) animated:NO];
+//        }
+//    }
+//    
+//    [_nearTableView reloadData];
+//    [self stopAnimating];
+//    [self performSelector:@selector(doneLoadingTableViewData) withObject:nil afterDelay:0];
+//    
+//}
+//-(void)ASIRequestFailed:(NSString *)requestResult
+//{
+//    NSLog(@"%@",requestResult);
+//    //    NSDictionary *responseDict = [requestResult objectFromJSONString];
+//    //    //        NSLog(@"responseObject = %@", responseDict);
+//    if (nearArray.count>0) {
+//        _nearTableView.hidden=NO;
+//        [_nearTableView reloadData];
+//    }else{
+//        _nearTableView.hidden=YES;
+//    }
+//    
+//    moreLabel.hidden=NO;
+//    _reloading = NO;
+//    if (totalPage==currentPage) {
+//        moreLabel.text=@"没有更多数据";
+//    }else{
+//        moreLabel.text=@"加载更多";
+//    }
+//    
+//    if (isPullRefresh) {
+//        isPullRefresh=NO;
+//    }else{
+//        if (currentPage==1) {
+//            [_nearTableView setContentOffset:CGPointMake(0, 0) animated:NO];
+//        }
+//    }
+//    [_nearTableView reloadData];
+//    
+//    [self stopAnimating];
+//    [self performSelector:@selector(doneLoadingTableViewData) withObject:nil afterDelay:0];
+//    UIAlertView *alert=[[UIAlertView alloc]initWithTitle:@"提示" message:@"请求数据失败！" delegate:nil cancelButtonTitle:@"确定" otherButtonTitles:nil];
+//    [alert show];
+//    [alert release];
+//
+//}
+
+//成功回调
+-(void)requestFinished:(ASIHTTPRequest *)request
+{
+    [self stopAnimating];
+    NSString *string = [request responseString];
+    //    NSLog(@"%@",requestResult);
+    NSDictionary *responseDict = [string objectFromJSONString];
+    //    NSLog(@"%@",responseDict);
+    NSArray *arr=[responseDict objectForKey:@"root"];
+    NSMutableArray *array;
+    if(_nearArray.count){
+        array=[[NSMutableArray alloc]initWithArray:_nearArray ];
+    }else
+        array=[[NSMutableArray alloc]init];
+
+    if (![arr isKindOfClass:[NSNull class]]) {
+        for (NSDictionary *dic in arr) {
+            ASMerchantDetailInfo *info=[[ASMerchantDetailInfo alloc]init];
+            NSString *ids=[NSString stringWithFormat:@"%@",[dic objectForKey:@"id"]];
+            if ([ids isEqualToString:@"<null>"]||[ids isEqualToString:@""]) {
+                ids=@"";
+            }
+            info.ids=ids;
+            NSString *name=[NSString stringWithFormat:@"%@",[dic objectForKey:@"name"]];
+            if ([name isEqualToString:@"<null>"]||[name isEqualToString:@""]) {
+                name=@"";
+            }
+            info.name=name;
+            NSString *city=[NSString stringWithFormat:@"%@",[dic objectForKey:@"cityName"]];
+            if ([city isEqualToString:@"<null>"]||[city isEqualToString:@""]) {
+                city=@"";
+            }
+            info.city=city;
+            NSString *address=[NSString stringWithFormat:@"%@",[dic objectForKey:@"address"]];
+            if ([address isEqualToString:@"<null>"]||[address isEqualToString:@""]) {
+                address=@"";
+            }
+            info.address=address;
+            NSString *discount=[NSString stringWithFormat:@"%@",[dic objectForKey:@"ly_ykt"]];
+            if ([discount isEqualToString:@"<null>"]||[discount isEqualToString:@""]) {
+                discount=@"";
+            }
+            info.discount=discount;
+            NSString *createTime=[NSString stringWithFormat:@"%@",[dic objectForKey:@"createTime"]];
+            if ([createTime isEqualToString:@"<null>"]||[createTime isEqualToString:@""]) {
+                createTime=@"";
+            }
+            info.createTime=createTime;
+            NSString *imageURL=[NSString stringWithFormat:@"%@",[dic objectForKey:@"preview"]];
+            if ([imageURL isEqualToString:@"<null>"]||[imageURL isEqualToString:@""]) {
+                imageURL=@"";
+            }
+            info.imageURL=imageURL;
+            NSString *imageURLMAX=[NSString stringWithFormat:@"%@",[dic objectForKey:@"preview"]];
+            if ([imageURLMAX isEqualToString:@"<null>"]||[imageURLMAX isEqualToString:@""]) {
+                imageURLMAX=@"";
+            }
+            info.imageURLMAX=imageURLMAX;
+            NSString *introduction=[NSString stringWithFormat:@"%@",[dic objectForKey:@"mobile_brief"]];
+            if ([introduction isEqualToString:@"<null>"]||[introduction isEqualToString:@""]) {
+                introduction=@"";
+            }
+            info.introduction=introduction;
+            NSString *latitude1=[NSString stringWithFormat:@"%@",[dic objectForKey:@"latitude"]];
+            if ([latitude1 isEqualToString:@"<null>"]||[latitude1 isEqualToString:@""]) {
+                latitude1=@"";
+            }
+            info.latitude=latitude1;
+            NSString *longitude1=[NSString stringWithFormat:@"%@",[dic objectForKey:@"longitude"]];
+            if ([longitude1 isEqualToString:@"<null>"]||[longitude1 isEqualToString:@""]) {
+                longitude1=@"";
+            }
+            info.longitude=longitude1;
+            NSString *remark=[NSString stringWithFormat:@"%@",[dic objectForKey:@"remark"]];
+            if ([remark isEqualToString:@"<null>"]||[remark isEqualToString:@""]) {
+                remark=@"";
+            }
+            info.remark=remark;
+            NSString *stars=[NSString stringWithFormat:@"%@",[dic objectForKey:@"avg_point"]];
+            if ([stars isEqualToString:@"<null>"]||[stars isEqualToString:@""]) {
+                stars=@"";
+            }
+            info.stars=stars;
+            NSString *status=[NSString stringWithFormat:@"%@",[dic objectForKey:@"avg_point"]];
+            if ([status isEqualToString:@"<null>"]||[status isEqualToString:@""]) {
+                status=@"";
+            }
+            info.status=status;
+            
+            NSString *tel=[NSString stringWithFormat:@"%@",[dic objectForKey:@"tel"]];
+            if ([tel isEqualToString:@"<null>"]||[tel isEqualToString:@""]) {
+                tel=@"";
+            }
+            info.tel=tel;
+            NSString *type=[NSString stringWithFormat:@"%@",[dic objectForKey:@"type"]];
+            if ([type isEqualToString:@"<null>"]||[type isEqualToString:@""]) {
+                type=@"";
+            }
+            info.type=type;
+            NSString *visible=[NSString stringWithFormat:@"%@",[dic objectForKey:@"visible"]];
+            if ([visible isEqualToString:@"<null>"]||[visible isEqualToString:@""]) {
+                visible=@"";
+            }
+            info.visible=visible;
+            NSString *changed=[NSString stringWithFormat:@"%@",[dic objectForKey:@"changed"]];
+            if ([changed isEqualToString:@"<null>"]||[changed isEqualToString:@""]) {
+                changed=@"";
+            }
+            info.changed=changed;
+            
+            [array addObject:info];
+            [info release];
+        }
+        if (arr.count<[PAGENUMBER intValue]) {
+            totalPage=currentPage;
+        }
+    }
+    [_nearArray removeAllObjects];
+    self.nearArray=[NSMutableArray arrayWithArray:array];
+    [array release];
+
+//    nearArray=[[NSMutableArray alloc]initWithArray:array];
+
+    if (_nearArray.count>0) {
+        _nearTableView.hidden=NO;
+    }else{
+        _nearTableView.hidden=YES;
+        UIAlertView *alert=[[UIAlertView alloc]initWithTitle:@"提示" message:@"目前没有商家信息！" delegate:nil cancelButtonTitle:@"确定" otherButtonTitles:nil];
+        [alert show];
+        [alert release];
+    }
+//    moreLabel.hidden=NO;
+    _reloading = NO;
+    if (totalPage==currentPage) {
+        moreLabel.text=@"没有更多数据";
+    }else{
+        moreLabel.text=@"加载更多";
+    }
+    if (isPullRefresh) {
+        isPullRefresh=NO;
+    }else{
+        if (currentPage==1) {
+            [_nearTableView setContentOffset:CGPointMake(0, 0) animated:NO];
+        }
+    }
+    
+    [_nearTableView reloadData];
+    
+    [self performSelector:@selector(doneLoadingTableViewData) withObject:nil afterDelay:0];
+}
+
+//失败回调
+-(void)requestFailed:(ASIHTTPRequest *)request
+{
+    if (currentPage>1) {
+        currentPage--;
+    }
+     [self stopAnimating];
+
+    if (_nearArray.count>0) {
+        _nearTableView.hidden=NO;
+        [_nearTableView reloadData];
+    }else{
+        _nearTableView.hidden=YES;
+    }
+    
+//    moreLabel.hidden=NO;
+    _reloading = NO;
+    if (totalPage==currentPage) {
+        moreLabel.text=@"没有更多数据";
+    }else{
+        moreLabel.text=@"加载更多";
+    }
+    
+    if (isPullRefresh) {
+        isPullRefresh=NO;
+    }else{
+        if (currentPage==1) {
+            [_nearTableView setContentOffset:CGPointMake(0, 0) animated:NO];
+        }
+    }
+    [_nearTableView reloadData];
+    
+   
+    [self performSelector:@selector(doneLoadingTableViewData) withObject:nil afterDelay:0];
+    UIAlertView *alert=[[UIAlertView alloc]initWithTitle:@"提示" message:@"亲网络不给力！" delegate:nil cancelButtonTitle:@"确定" otherButtonTitles:nil];
+    [alert show];
+    [alert release];
+}
+@end

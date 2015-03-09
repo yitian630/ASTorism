@@ -1,0 +1,23 @@
+//
+//  ASClassRecommandViewController.h
+//  ASTorism
+//
+//  Created by apple  on 13-8-20.
+//  Copyright (c) 2013年 AS. All rights reserved.
+//
+
+#import <UIKit/UIKit.h>
+#import "NavigationBar.h"
+#import "ASTableHeaderView.h"
+#import "ASIHTTPRequest.h"
+#import "ASIFormDataRequest.h"
+#import "JSONKit.h"
+#import "ASCView.h"
+@interface ASClassRecommandViewController : UIViewController<NavigationBarDelegate,UITableViewDelegate,UITableViewDataSource,EGORefreshTableHeaderDelegate,ASIHTTPRequestDelegate,ASCidChooseDlegate>
+@property(nonatomic,retain) IBOutlet UIButton *categoryButton;
+@property(nonatomic,retain)NSString *category;
+@property(nonatomic,retain)NSString *city;
+@property(nonatomic,retain)NSString *proId;
+@property(nonatomic,retain)NSString *categoryId;
+
+@end

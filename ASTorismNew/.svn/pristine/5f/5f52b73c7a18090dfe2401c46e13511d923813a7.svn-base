@@ -1,0 +1,69 @@
+//
+//  ASInfoListDeatail.m
+//  ASTorism
+//
+//  Created by apple  on 13-9-17.
+//  Copyright (c) 2013年 AS. All rights reserved.
+//
+
+#import "ASInfoListDeatail.h"
+
+@implementation ASInfoListDeatail
+@synthesize businessId;
+@synthesize content;
+@synthesize endTime;
+@synthesize title;            
+@synthesize ids;            
+@synthesize startTime;
+@synthesize createTime;            
+@synthesize visible;
+@synthesize changed;
+@synthesize isRead;
+@synthesize imageURL;
+-(void)dealloc
+{
+    [imageURL release];
+    [isRead release];
+    [businessId release];
+    [content release];
+    [endTime release];
+    [title release];
+    [ids release];             
+    [startTime release];             
+    [createTime release];         
+    [visible release];
+    [changed release];
+    [super dealloc];
+}
+-(id)init{
+    self=[super init];
+    if (self) {
+        imageURL=[[NSString alloc]init];
+        businessId=[[NSString alloc]init];
+        content=[[NSString alloc]init];
+        isRead=[[NSString alloc]init] ;
+        
+        endTime=[[NSString alloc]init] ;
+        title=[[NSString alloc]init] ;
+        startTime=[[NSString alloc]init] ;
+        createTime=[[NSString alloc]init] ;
+        changed=[[NSString alloc]init] ;
+        visible=[[NSString alloc]init] ;
+        ids=[[NSString alloc]init] ;
+        
+        
+    }
+    return self;
+}
+//- (void)setValue:(id)aValue forKey:(NSString *)aKey
+//{
+//    if ([aKey isEqualToString:@"id"])
+//    {
+//        self.ids =[NSString stringWithFormat:@"%@",aValue] ;
+//    }
+//    else
+//    {
+//        [super setValue:aValue forKey:aKey];
+//    }
+//}
+@end
